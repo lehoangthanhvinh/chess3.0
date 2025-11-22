@@ -10,6 +10,9 @@ pygame.display.set_caption("Chess Board")
 clock = pygame.time.Clock()
 file=['a','b','c','d','e','f','g','h']
 rank=['8','7','6','5','4','3','2','1']
+AITurn=[]
+AITurn.append('b')
+AITurn.append('w')
 running=True
 try:
     CNNProcessor.init_path(rootPath)
@@ -17,16 +20,14 @@ except:pass
 def main():
     global running
     [playingBoard,moveLog]=set_starting_board(screen)
-    AITurn=[]
-    AITurn.append('b')
-    AITurn.append('w')
     selected=None
     AI.AI_load_weight()
-    AI.AI_boost("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
     while running:
         if playingBoard.fen().split()[1] in AITurn:
             if playingBoard.is_game_over():
-                CNNProcessor.CNN_take_data(moveLog)
+                outcome=playingBoard.outcome()
+                print(outcome.termination)
+                CNNProcessor.CNN_take_data(moveLog,playingBoard,"all")
                 [playingBoard,moveLog]=set_starting_board(screen)
                 continue
             AI_move(playingBoard,moveLog)
@@ -35,7 +36,7 @@ def main():
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if playingBoard.is_game_over():
-                    CNNProcessor.CNN_take_data(moveLog)
+                    CNNProcessor.CNN_take_data(moveLog,playingBoard,"all")
                     [playingBoard,moveLog]=set_starting_board(screen)
                     continue
                 (y,x)=pygame.mouse.get_pos()
@@ -68,18 +69,25 @@ def player_click_move(x,y,selected,playingBoard,moveLog):
         return sqr
 
 def AI_move(playingBoard,moveLog):
-    AI.AI_to_next_move(moveLog)
-    move=AI.AI_response()
+    move=AI.AI_response(playingBoard.fen())
+    move=chess.Move.from_uci(move)
     playingBoard.push(move)
     moveLog.append(playingBoard.fen())
     board=to_2D_array(playingBoard)
     displayBoard.draw_board(screen,board)
 
 def set_starting_board(screen):
+    global AITurn
     playingBoard=chess.Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
     board=to_2D_array(playingBoard)
     moveLog=["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]
     displayBoard.draw_board(screen,board)
+    if 'b' in AITurn and 'w' in AITurn:
+        pass
+    elif 'b' in AITurn:
+        AITurn=['w']
+    elif 'w' in AITurn:
+        AITurn=['b']
     return[playingBoard,moveLog]
 
 def move_handling(screen,playingBoard,selected,sqr):

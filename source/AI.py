@@ -1,32 +1,40 @@
-import chess,random
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, Flatten, Dense
+import chess,random,listMove
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import Conv2D, Flatten, Dense, Input, ReLU, BatchNormalization
 import numpy as np
 
-boardTree=None
-searchDepth=1
-quienceDepth=2
+inputData=Input(shape=(8,8,12))
 
-class Node:
-    def __init__(self,FENCode,move,cont):
-        self.FENCode=FENCode
-        self.score=0
-        self.response=None
-        self.cont=cont
-        self.move=move
-        self.next=[]
-    def update_response(self,move):
-        self.response=move
+x = Conv2D(64, 3, padding='same')(inputData)
+x = BatchNormalization()(x)
+x = ReLU()(x)
 
+for _ in range(5):
+    skip=x
+    x=Conv2D(64,3,padding='same')(x)
+    x=BatchNormalization()(x)
+    x=ReLU()(x)
+    x=Conv2D(64,3,padding='same')(x)
+    x=BatchNormalization()(x)
+    x=x+skip
+    x=ReLU()(x)
 
-model = Sequential([
-    Conv2D(64, 3, activation='relu', padding='same', input_shape=(8, 8, 12)),
-    Conv2D(128, 3, activation='relu', padding='same'),
-    Conv2D(256, 3, activation='relu', padding='same'),
-    Flatten(),
-    Dense(256, activation='relu'),
-    Dense(1, activation='tanh')
-])
+#Value head
+v = Conv2D(1, 1)(x)
+v = BatchNormalization()(v)
+v = ReLU()(v)
+v = Flatten()(v)
+value_out = Dense(256, activation='relu')(v)
+value_out = Dense(1, activation='tanh')(value_out)
+
+#Policy head
+p = Conv2D(2, 1)(x)
+p = BatchNormalization()(p)
+p = ReLU()(p)
+p = Flatten()(p)
+policy_out = Dense(1968, activation='softmax')(p)
+
+model=Model(inputData,[value_out,policy_out])
 
 def AI_load_weight():
     global model
@@ -35,71 +43,17 @@ def AI_load_weight():
         print("Loaded")
     except:pass
 
-def AI_boost(FENCode):
-    global boardTree
-    newNode=Node(FENCode,None,0)
-    boardTree=newNode
-    for i in range(searchDepth+1):AI_build(boardTree,0,i)
-
-def AI_build(curNode,depth,maxDepth):
-    global model
-    playingBoard=chess.Board(curNode.FENCode)
-    if playingBoard.is_game_over():
-        if playingBoard.result()=="1-0":curNode.score=1
-        elif playingBoard.result()=="0-1":curNode.score=-1
-        else:curNode.score=0
-        return
-    curNode.score=AI_rate_board(playingBoard)
-    if (depth<maxDepth or (curNode.cont==1 and depth<maxDepth+quienceDepth)):
-        if not curNode.next:
-            AI_input_take(curNode)
-            if depth<maxDepth:
-                AI_input_move(curNode)
-                curNode.cont=0
-        elif depth<maxDepth and curNode.cont==1:
-            AI_input_move(curNode)
-            curNode.cont=0
-        for node in curNode.next:
-            AI_build(node,depth+1,maxDepth)
-        if curNode.next:
-            if is_maxing(curNode.FENCode):curNode.next.sort(key=lambda x:x.score,reverse=True)
-            else:curNode.next.sort(key=lambda x:x.score)
-            if maxDepth-depth>2:
-                curNode.next=curNode.next[:5]
-            elif maxDepth-depth>1:
-                curNode.next=curNode.next[:7]
-            elif maxDepth-depth>0:
-                curNode.next=curNode.next[:10]
-            curNode.response=curNode.next[0].move
-            curNode.score=curNode.next[0].score
-
-def is_maxing(FENCode):
-    turn=FENCode.split()[1]
-    if turn=='w': return True
-    return False
-
-def AI_input_take(curNode):
-    playingBoard=chess.Board(curNode.FENCode)
-    for move in playingBoard.legal_moves:
-        cont=playingBoard.is_capture(move)
-        playingBoard.push(move)
-        newNode=Node(playingBoard.fen(),move,cont)
-        if cont:curNode.next.append(newNode)
-        playingBoard.pop()
-
-def AI_input_move(curNode):
-    playingBoard=chess.Board(curNode.FENCode)
-    for move in playingBoard.legal_moves:
-        cont=playingBoard.is_capture(move)
-        playingBoard.push(move)
-        newNode=Node(playingBoard.fen(),move,cont)
-        if not cont:curNode.next.append(newNode)
-        playingBoard.pop()
-
-def AI_rate_board(playingBoard):
-    x_input=[playingBoard.fen()]
+def AI_rate_board(fen):
+    x_input=[fen]
     x_input=AI_input(x_input)
-    return model.predict(x_input)[0][0]
+    value,policy=model.predict(x_input)
+    return value.flatten()
+
+def AI_rate_multiple_board(boardList):
+    if not boardList: return
+    x_input=AI_input(boardList)
+    value,policy=model.predict(x_input)
+    return value.flatten()
 
 def AI_input(moveLog):
     piece_to_plane = {
@@ -119,22 +73,30 @@ def AI_input(moveLog):
                     pass
         output.append(tensor)
     return np.array(output, dtype=np.float32)
-
-def AI_to_next_move(moveLog):
-    global boardTree
-    found=False
-    for fen in moveLog:
-        if found:
-            for node in boardTree.next:
-                if node.FENCode==fen:
-                    boardTree=node
-        if fen==boardTree.FENCode:
-            found=True
-    if boardTree.FENCode!=moveLog[-1]:
-        newNode=Node(moveLog[-1],None,0)
-        boardTree=newNode
-        print("Not found")
-    for i in range(searchDepth+1):AI_build(boardTree,0,i)
     
-def AI_response():
-    return boardTree.response
+def AI_response(fen):
+    x_input=[fen]
+    x_input=AI_input(x_input)
+    value,policy=model.predict(x_input)
+    policy=policy[0]
+    mask=np.zeros(1968)
+    moveList=listMove.list_move()
+    board=chess.Board(fen)
+    move_index_map={move:i for i,move in enumerate(moveList)}
+    for move in board.legal_moves:
+        move_str=str(move)
+        if move_str in move_index_map:
+            mask[move_index_map[move_str]]=1
+        else:
+            print(f"Move not found in list: {move_str}")
+    policy=policy*mask
+    if policy.sum()==0:
+        print("WARNING: Sum=0")
+        try:return list(board.legal_moves)[0]
+        except:pass
+    policy=policy/policy.sum()
+    temperature=1.0
+    policy=np.power(policy,1/temperature)
+    policy=policy/policy.sum()
+    best_idx = np.random.choice(len(policy), p=policy)
+    return moveList[best_idx]
