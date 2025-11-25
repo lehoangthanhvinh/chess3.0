@@ -4,7 +4,7 @@ from .displayPieces import place_pieces
 pygame.init()
 font = pygame.font.Font(None, 24)
 WHTSQ=( 200, 200, 200)
-BLKSQ=( 100, 100, 100)
+BLKSQ=( 125, 125, 125)
 Col=('A','B','C','D','E','F','G','H')
 Row=('8','7','6','5','4','3','2','1')
 def draw_board(screen,board):

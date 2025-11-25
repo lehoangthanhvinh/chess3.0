@@ -30,10 +30,12 @@ def CNN_input_layer(moveLog):
     return np.array(output, dtype=np.float32)
 
 def CNN_weight_rate(moveLog,lastBoard):
-    if lastBoard.is_fifty_moves() or lastBoard.is_seventyfive_moves() or \
-    lastBoard.is_fivefold_repetition() or lastBoard.is_insufficient_material():
+    if lastBoard.is_seventyfive_moves():
         return 0,moveLog
     weight=1
+    if (lastBoard.is_insufficient_material() or lastBoard.is_fivefold_repetition())\
+    and len(moveLog)>100:
+        return 0,moveLog
     if lastBoard.is_checkmate():
         weight+=1
     if len(moveLog)<=50:

@@ -95,7 +95,7 @@ def AI_response(fen):
         try:return list(board.legal_moves)[0]
         except:pass
     policy=policy/policy.sum()
-    temperature=1.0
+    temperature=0.01
     policy=np.power(policy,1/temperature)
     policy=policy/policy.sum()
     best_idx = np.random.choice(len(policy), p=policy)

@@ -27,6 +27,7 @@ def main():
             if playingBoard.is_game_over():
                 outcome=playingBoard.outcome()
                 print(outcome.termination)
+                print("Total moves: ",len(moveLog)//2)
                 CNNProcessor.CNN_take_data(moveLog,playingBoard,"all")
                 [playingBoard,moveLog]=set_starting_board(screen)
                 continue
@@ -36,6 +37,9 @@ def main():
                 running = False
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if playingBoard.is_game_over():
+                    outcome=playingBoard.outcome()
+                    print(outcome.termination)
+                    print("Total moves: ",len(moveLog)//2)
                     CNNProcessor.CNN_take_data(moveLog,playingBoard,"all")
                     [playingBoard,moveLog]=set_starting_board(screen)
                     continue

@@ -61,15 +61,20 @@ def make_move(fen):
     weight=1.0
     playingBoard=chess.Board(fen)
     result=np.zeros(1968)
-    move=engine.play(playingBoard,chess.engine.Limit(0.5))
     moveList=listMove.list_move()
-    if str(move.move) in moveList:
-        result[moveList.index(str(move.move))]=1
-    elif move.move==None:
+    info=engine.analyse(playingBoard, chess.engine.Limit(depth=15,time=0.2), multipv=5)
+    if "pv" not in info[0]:
         weight=0.0
-    else:
-        print(f"Move not found in list: {str(move.move)}")
-        sys.exit()
+        return result,weight
+    for pv in info:
+        if "pv" not in pv:
+            continue
+        if str(pv["pv"][0]) in moveList:
+            result[moveList.index(str(pv["pv"][0]))]=1/int(pv["multipv"])
+        else:
+            print("Move not found in list",str(pv["pv"][0]))
+            sys.exit()
+    if result.sum()!=0:result=result/result.sum()
     return result,weight
 
 def stock_fish_close():
